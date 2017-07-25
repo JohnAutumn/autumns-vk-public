@@ -18,25 +18,23 @@ function vkp_settings_menu(){
 function render_vkp_settings_page(){
     include "settings.php";
 }
+function GetPostingURI($owner, $message, $attachments){
+    $posting_uri="https://api.vk.com/method/wall.post?".http_build_query(array(
+            'owner_id' => $owner,
+            'message' => $message,
+            'access_token' => get_option(VKP_ACCESS_TOKEN_OPTION),
+            'attachments' => $attachments
+        ));
+    return $posting_uri;
+}
 //Публикация записи
-function vk_wall_publisher($message, $attachments='', $for='wall', $poll=false){
+function vk_wall_publisher($message, $attachments='', $for='wall'){
     $message=str_replace("{br}", "\n\n", $message);
     $message=str_replace("\\\"", "\"", $message);
     if($for=='wall'){
-        $posting_uri="https://api.vk.com/method/wall.post?".http_build_query(array(
-                'owner_id' => get_option(VKP_USER_ID_OPTION),
-                'message' => $message,
-                'access_token' => get_option(VKP_ACCESS_TOKEN_OPTION),
-                'attachments' => $attachments
-            ));
+        $posting_uri=GetPostingURI(get_option(VKP_USER_ID_OPTION), $message, $attachments);
     }else{
-        $posting_uri="https://api.vk.com/method/wall.post?".http_build_query(array(
-                'owner_id' => "-".get_option(VKP_GROUP_ID),
-                'message' => $message,
-                'access_token' => get_option(VKP_ACCESS_TOKEN_OPTION),
-                'attachments' => $attachments,
-                'signed' => 0
-            ));
+        $posting_uri=GetPostingURI("-".get_option(VKP_GROUP_ID), $message, $attachments);
     }
     $result=file_get_contents($posting_uri);
     return $result;
@@ -49,36 +47,31 @@ function ask_to_public(){
     $text=$post->post_title."{br}".$content;
     ?>
     <script>
-        jQuery('form#post').on('submit',function (event) {
-            if(confirm('Опубликовать запись на стене?')){
-                jQuery.post(ajaxurl, {action: 'post_vk', id: '<?=$id;?>', title: '<?=$text;?>'}, function (response) {
-                    console.log(response);
-                    alert('Успешно опубликовано на стене ВК');
-                })
-            }
+        var wall='<?=get_option(VKP_USER_ALERT);?>';
+        var group='<?=get_option(VKP_GROUP_ALERT);?>';
+        function GetAjaxFromVk(action, id, title, type) {
+            jQuery.post(ajaxurl, {action: action, id: id, title: title, type: type}, function (response) {
+                console.log(response);
+                alert('Успешно опубликовано');
+            });
+        }
+        function GetConfirmPost() {
+                if(wall=="yes" && confirm('Опубликовать запись на стене?')) {
+                    GetAjaxFromVk('post_vk', '<?=$id;?>', '<?=$text;?>', 'wall');
+                }
+                if(group=="yes" && confirm('Опубликовать запись на стене в сообществе?')){
+                    GetAjaxFromVk('post_vk', '<?=$id;?>', '<?=$text;?>', 'group');
+                }
+        }
+        jQuery('form#post').on('submit',function () {
+            //event.preventDefault();
+            //var element=this;
+            GetConfirmPost();
         });
     </script>
     <?
 }
 
-function ask_to_public_group(){
-    $id=$_GET['post'];
-    $post=get_post($id);
-    $content = strip_tags(stristr($post->post_content, "<!--more-->", true));
-    $text=$post->post_title."{br}".$content;
-    ?>
-    <script>
-        jQuery('form#post').on('submit',function (event) {
-            if(confirm('Опубликовать запись на стене в группе?')){
-                jQuery.post(ajaxurl, {action: 'post_vk_group', id: '<?=$id;?>', title: '<?=$text;?>'}, function (response) {
-                    console.log(response);
-                    alert('Успешно опубликовано на стене группы ВК');
-                })
-            }
-        });
-    </script>
-    <?
-}
 
 function post_publ_vk(){
     $title=str_replace("{br}", "\n\n", $_REQUEST['title']);
@@ -109,19 +102,23 @@ function get_ajax_posting(){
     $text=$post->post_title."{br}".$content;
     ?>
     <script>
-        jQuery('input#pub_user, input#pub_group').on('click',function (event) {
+        function GetRespButton(element) {
             var type="post";
             var conf="Опубликовать запись на стене в группе?";
             var suc="Запись опубликована";
-            if(jQuery(this).is("#pub_user")){
+            if(jQuery(element).is("#pub_user")){
                 type="wall";
                 conf="Опубликовать запись на Вашей стене?";
             }
             if(confirm(conf)){
-                jQuery.post(ajaxurl, {action: 'post_vk_ajax', id: '<?=$id;?>', title: '<?=$text;?>', type:type},  function (response) {
+                jQuery.post(ajaxurl, {action: 'post_vk_ajax', id: '<?=$id;?>', title: '<?=$text;?>', type:type},  function () {
                     alert(suc);
                 });
             }
+        }
+
+        jQuery('input#pub_user, input#pub_group').on('click',function () {
+            GetRespButton(this);
         });
     </script>
     <?
@@ -133,14 +130,15 @@ function get_ajax_pub(){
     $type=$_REQUEST['type'];
     $att=$permalink;
     if(get_option(VKP_POLL)=="yes"){
-        $poll=create_poll($type);
+        $poll=create_poll();
         $poll['response']=(array) $poll['response'];
         var_dump($poll);
         $att.=",poll".$poll['response']['owner_id']."_".$poll['response']['poll_id'];
     }
     vk_wall_publisher($title,$att, $type);
 }
-function create_poll($type){
+function create_poll(){
+    //Функция создания опроса. Возвращает данные об опросе
     $owner=get_option(VKP_USER_ID_OPTION);
     $vars=json_encode(explode(",",get_option(VKP_POLL_VARIANTS)));
     $posting_uri="https://api.vk.com/method/polls.create?".http_build_query(array(

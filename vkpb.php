@@ -30,9 +30,7 @@ include "functions.php";//подключение файла функций
 add_action("admin_menu","vkp_settings_menu");//Добавляем пункт меню настроек
 
 //$admin_page=str_replace(array("/","?","=","wp-admin"),"",$_SERVER['REQUEST_URI']);
-add_action("wp_ajax_post_vk", "post_publ_vk", 10);//Публикация поста на стену
-
-add_action("wp_ajax_post_vk_group", "post_publ_group", 10);//Публикация поста в группу
+add_action("wp_ajax_post_vk", "get_ajax_pub", 10);//Публикация поста
 
 add_action("wp_ajax_post_vk_ajax", "get_ajax_pub", 10);
 
