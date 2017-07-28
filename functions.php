@@ -18,7 +18,16 @@ function vkp_settings_menu(){
 function render_vkp_settings_page(){
     include "settings.php";
 }
-function GetPostingURI($owner, $message, $attachments){
+function GetPostingURI($owner, $message, $attachments, $post_id){
+    if(get_option(VKP_PHOTO_ADD)=="yes"){
+        if($owner<0){
+            $photo=upload_photo($post_id, "group");
+        }else{
+            $photo=upload_photo($post_id, "wall");
+        }
+
+        $attachments.=",".$photo['id'];
+    }
     $posting_uri="https://api.vk.com/method/wall.post?".http_build_query(array(
             'owner_id' => $owner,
             'message' => $message,
@@ -28,13 +37,13 @@ function GetPostingURI($owner, $message, $attachments){
     return $posting_uri;
 }
 //Публикация записи
-function vk_wall_publisher($message, $attachments='', $for='wall'){
+function vk_wall_publisher($message, $attachments='', $for='wall', $post_id){
     $message=str_replace("{br}", "\n\n", $message);
     $message=str_replace("\\\"", "\"", $message);
     if($for=='wall'){
-        $posting_uri=GetPostingURI(get_option(VKP_USER_ID_OPTION), $message, $attachments);
+        $posting_uri=GetPostingURI(get_option(VKP_USER_ID_OPTION), $message, $attachments, $post_id);
     }else{
-        $posting_uri=GetPostingURI("-".get_option(VKP_GROUP_ID), $message, $attachments);
+        $posting_uri=GetPostingURI("-".get_option(VKP_GROUP_ID), $message, $attachments, $post_id);
     }
     $result=file_get_contents($posting_uri);
     return $result;
@@ -64,8 +73,6 @@ function ask_to_public(){
                 }
         }
         jQuery('form#post').on('submit',function () {
-            //event.preventDefault();
-            //var element=this;
             GetConfirmPost();
         });
     </script>
@@ -77,14 +84,14 @@ function post_publ_vk(){
     $title=str_replace("{br}", "\n\n", $_REQUEST['title']);
     $title=str_replace("\\\"", "\"", $title);
     $permalink=get_permalink($_REQUEST['id']);
-    vk_wall_publisher($title, $permalink, "wall");
+    vk_wall_publisher($title, $permalink, "wall", $_REQUEST['id']);
 }
 
 function post_publ_group(){
     $title=str_replace("{br}", "\n\n", $_REQUEST['title']);
     $title=str_replace("\\\"", "\"", $title);
     $permalink=get_permalink($_REQUEST['id']);
-    vk_wall_publisher($title, $permalink, "post");
+    vk_wall_publisher($title, $permalink, "post", $_REQUEST['id']);
 }
 
 function add_user_button(){
@@ -132,10 +139,9 @@ function get_ajax_pub(){
     if(get_option(VKP_POLL)=="yes"){
         $poll=create_poll();
         $poll['response']=(array) $poll['response'];
-        var_dump($poll);
         $att.=",poll".$poll['response']['owner_id']."_".$poll['response']['poll_id'];
     }
-    vk_wall_publisher($title,$att, $type);
+    vk_wall_publisher($title,$att, $type, $_REQUEST['id']);
 }
 function create_poll(){
     //Функция создания опроса. Возвращает данные об опросе
@@ -150,4 +156,63 @@ function create_poll(){
         ));
     $result=file_get_contents($posting_uri);
     return (array) json_decode($result);
+}
+function get_link_upload_photo($type="wall"){
+    if($type=="wall"){
+        $posting_uri="https://api.vk.com/method/photos.getWallUploadServer?".http_build_query(array(
+                'album_id' => get_option(VKP_USER_ALBUM),
+                'access_token' => get_option(VKP_ACCESS_TOKEN_OPTION)
+            ));
+    }else{
+        $posting_uri="https://api.vk.com/method/photos.getWallUploadServer?".http_build_query(array(
+                'album_id' => get_option(VKP_GROUP_ALBUM),
+                'group_id' => get_option(VKP_GROUP_ID),
+                'access_token' => get_option(VKP_ACCESS_TOKEN_OPTION)
+                ));
+    }
+    $result=file_get_contents($posting_uri);
+    $result=json_decode($result);
+    return (array) $result->response;
+}
+function save_photo($type="wall", $hash, $photo, $server){
+    if($type=="wall"){
+        $posting_uri="https://api.vk.com/method/photos.saveWallPhoto?".http_build_query(array(
+                'user_id' => get_option(VKP_USER_ID_OPTION),
+                'photo' => $photo,
+                'server' => $server,
+                'hash' => $hash,
+                'access_token' => get_option(VKP_ACCESS_TOKEN_OPTION)
+            ));
+    }else{
+        $posting_uri="https://api.vk.com/method/photos.saveWallPhoto?".http_build_query(array(
+                'group_id' => get_option(VKP_GROUP_ID),
+                'photo' => $photo,
+                'server' => $server,
+                'hash' => $hash,
+                'access_token' => get_option(VKP_ACCESS_TOKEN_OPTION)
+            ));
+    }
+    $result=file_get_contents($posting_uri);
+    $result=json_decode($result);
+    return (array) $result->response[0];
+}
+function upload_photo($post_id, $type='wall'){
+    $tt=get_link_upload_photo($type);
+    $upload_url = $tt['upload_url'];
+    $photo=str_replace(array("http", "https", "://", $_SERVER['SERVER_NAME']),"", get_the_post_thumbnail_url($post_id));
+    $path=$_SERVER['DOCUMENT_ROOT'];
+    $photo=str_replace("/", "\\", $path.$photo);
+
+    $ch=curl_init();
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => 1,
+        CURLOPT_URL => $upload_url,
+        CURLOPT_POST => 1,
+        CURLOPT_POSTFIELDS => array("photo" => "@".$photo)
+    ));
+    $result = json_decode(curl_exec($ch), true);
+    $result['pp']=$photo;
+
+    $sp=save_photo($type, $result['hash'], $result['photo'], $result['server']);
+    return $sp;
 }

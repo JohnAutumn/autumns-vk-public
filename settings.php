@@ -21,6 +21,9 @@ $array_args=array(
     VKP_USER_ALERT,
     VKP_GROUP_CHECK,
     VKP_GROUP_ALERT,
+    VKP_PHOTO_ADD,
+    VKP_USER_ALBUM,
+    VKP_GROUP_ALBUM,
     VKP_POLL,
     VKP_POLL_TITLE,
     VKP_POLL_VARIANTS,
@@ -60,15 +63,20 @@ if($_POST){
             <td><input class="regular-text code" placeholder="Access Token сообщества вконтакте" name="<?=VKP_GROUP_TOKEN;?>" type="text" value="<?=get_option(VKP_GROUP_TOKEN);?>" /></td>
         </tr>
     </table>
-
+    <hr>
     <h3>Настройки кнопок</h3>
     <p>Включить кнопку "Поделиться на своей страничке" <br/><input value="yes" type="radio" name="<?=VKP_USER_CHECK;?>" <? if(get_option(VKP_USER_CHECK)=="yes"){echo "checked=\"checked\"";}?> />Да <input value="no" type="radio" name="<?=VKP_USER_CHECK;?>" <? if(get_option(VKP_USER_CHECK)!="yes"){echo "checked=\"checked\"";}?> />Нет</p>
     <p>Включить кнопку "Поделиться на странице сообщества" <br/><input value="yes" type="radio" name="<?=VKP_GROUP_CHECK;?>" <? if(get_option(VKP_GROUP_CHECK)=="yes"){echo "checked=\"checked\"";}?> />Да <input value="no" type="radio" name="<?=VKP_GROUP_CHECK;?>" <? if(get_option(VKP_GROUP_CHECK)!="yes"){echo "checked=\"checked\"";}?> />Нет</p>
-
+    <hr>
     <h3>Настройки отправки поста</h3>
     <p>Делиться записью на своей страничке, при создании/обновлении публикации <br/><input value="yes" type="radio" name="<?=VKP_USER_ALERT;?>" <? if(get_option(VKP_USER_ALERT)=="yes"){echo "checked=\"checked\"";}?> />Да <input value="no" type="radio" name="<?=VKP_USER_ALERT;?>" <? if(get_option(VKP_USER_ALERT)!="yes"){echo "checked=\"checked\"";}?> />Нет</p>
     <p>Делиться записью на странице сообщества, при создании/обновлении публикации <br/><input value="yes" type="radio" name="<?=VKP_GROUP_ALERT;?>" <? if(get_option(VKP_GROUP_ALERT)=="yes"){echo "checked=\"checked\"";}?> />Да <input value="no" type="radio" name="<?=VKP_GROUP_ALERT;?>" <? if(get_option(VKP_GROUP_ALERT)!="yes"){echo "checked=\"checked\"";}?> />Нет</p>
-
+    <hr>
+    <h3>Настройки фотографий</h3>
+    <p>Добавлять фотографию поста к записи? <br/><input value="yes" type="radio" name="<?=VKP_PHOTO_ADD;?>" <? if(get_option(VKP_PHOTO_ADD)=="yes"){echo "checked=\"checked\"";}?>/>Да <input value="no" type="radio" name="<?=VKP_PHOTO_ADD;?>" <? if(get_option(VKP_PHOTO_ADD)=="no"){echo "checked=\"checked\"";}?>/>Нет</p>
+    <p>Id альбома пользователя <input class="regular-text code" type="text" name="<?=VKP_USER_ALBUM;?>" value="<?=get_option(VKP_USER_ALBUM);?>" /></p>
+    <p>Id альбома группы <input class="regular-text code" type="text" name="<?=VKP_GROUP_ALBUM;?>" value="<?=get_option(VKP_GROUP_ALBUM);?>" /></p>
+    <hr>
     <h3>Настройки опросов</h3>
     <p>Создавать опрос, который будет прикреплён к записи (только для сообществ) <br/><input value="yes" type="radio" name="<?=VKP_POLL;?>" <? if(get_option(VKP_POLL)=="yes"){echo "checked=\"checked\"";}?> />Да <input value="no" type="radio" name="<?=VKP_POLL;?>" <? if(get_option(VKP_POLL)!="yes"){echo "checked=\"checked\"";}?> />Нет</p>
     <p>Название опроса <input class="regular-text code" type="text" name="<?=VKP_POLL_TITLE;?>" value="<?=get_option(VKP_POLL_TITLE);?>"/></p>
@@ -77,15 +85,19 @@ if($_POST){
     <button type="submit" class="button-primary">Сохранить изменения</button>
 </form>
 <?
+$get_access_token_url = "https://oauth.vk.com/authorize?" . http_build_query(array(
+        'client_id' => get_option(VKP_CLIENT_ID_OPTION),
+        'scope' => implode(",", array("wall", "offline", "photos", "docs")),
+        'redirect_uri' => 'https://oauth.vk.com/blank.html',
+        'response_type' => 'token'
+    ));
 if(!get_option(VKP_ACCESS_TOKEN_OPTION) && get_option(VKP_USER_ID_OPTION) && get_option(VKP_CLIENT_ID_OPTION)) {
-    $get_access_token_url = "https://oauth.vk.com/authorize?" . http_build_query(array(
-            'client_id' => get_option(VKP_CLIENT_ID_OPTION),
-            'scope' => implode(",", array("wall", "offline")),
-            'redirect_uri' => 'https://oauth.vk.com/blank.html',
-            'response_type' => 'token'
-        ));
     ?>
     <p><a href="<?= $get_access_token_url; ?>" target="_blank">Получить ключ доступа пользователя можно здесь</a></p>
+    <?
+}else{
+    ?>
+    <p><a href="<?= $get_access_token_url; ?>" target="_blank">Переиздать ключ доступа пользователя можно здесь</a></p>
     <?
 }
 ?>
@@ -94,7 +106,7 @@ $posting_uri="https://api.vk.com/method/wall.post?".http_build_query(array(
         'owner_id' => get_option(VKP_USER_ID_OPTION),
         'message' => 'Проверочная запись',
         'access_token' => get_option(VKP_ACCESS_TOKEN_OPTION),
-        'response_type' => 'token'
+        'response_type' => 'code'
     ));
 ?>
 <p><a href="<?=$posting_uri;?>" target="_blank">Проверочная запись на стену пользователя</a></p>
