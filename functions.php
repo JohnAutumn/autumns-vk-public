@@ -199,20 +199,32 @@ function save_photo($type="wall", $hash, $photo, $server){
 function upload_photo($post_id, $type='wall'){
     $tt=get_link_upload_photo($type);
     $upload_url = $tt['upload_url'];
-    $photo=str_replace(array("http", "https", "://", $_SERVER['SERVER_NAME']),"", get_the_post_thumbnail_url($post_id));
-    $path=$_SERVER['DOCUMENT_ROOT'];
-    $photo=str_replace("/", "\\", $path.$photo);
+    $photo_url=get_the_post_thumbnail_url($post_id);
+    $photo=str_replace(array("http", "https", "://", $_SERVER['SERVER_NAME']),"", $photo_url);
 
+    switch (strtolower(PHP_OS)){
+        case "WIN":
+        case "WINNT": $photo=str_replace("/", "\\", $photo); $dname=dirname(__FILE__)."\\..\\..\\..\\"; break;
+        case "LINUX": $dname=dirname(__FILE__)."/../../.."; break;
+        default: $dname=dirname(__FILE__)."/../../.."; break;
+    }
+    $photo=$dname.$photo;
+    $photo_ob=(class_exists('CURLFile', false)) ? new CURLFile(realpath($photo)) : '@' . realpath($photo);
     $ch=curl_init();
     curl_setopt_array($ch, array(
+        CURLOPT_HTTPHEADER => array("Content-type: multipart/form-data"),
+        CURLOPT_HEADER => 0,
         CURLOPT_RETURNTRANSFER => 1,
         CURLOPT_URL => $upload_url,
         CURLOPT_POST => 1,
-        CURLOPT_POSTFIELDS => array("photo" => "@".$photo)
+        CURLOPT_POSTFIELDS => array("photo" => $photo_ob)
     ));
     $result = json_decode(curl_exec($ch), true);
-    $result['pp']=$photo;
-
+    $result['pp']=$photo_ob;
     $sp=save_photo($type, $result['hash'], $result['photo'], $result['server']);
-    return $sp;
+    if(curl_error($ch)){
+        return curl_error($ch);
+    }else{
+        return $sp;
+    }
 }

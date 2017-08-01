@@ -3,7 +3,7 @@
 Plugin Name: Vk public by John Autumn
 Plugin URI:
 Description: Производит публикацию записей блога на страничку Вконтакте
-Version: 1.5
+Version: 1.6
 Author: John Autumn
 Author URI: http://johnautumn.ru
 License: GPL2
